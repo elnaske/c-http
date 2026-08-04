@@ -6,5 +6,9 @@
 !src/**/*.c
 !src/**/*.h
 
+!web/
+!web/**/
+!web/**/*.html
+
 !Makefile
 !README.md
