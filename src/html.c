@@ -5,8 +5,29 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #define MIN(x, y) (x) < (y) ? (x) : (y)
+
+char *html_status_msg(HtmlStatus status) {
+    switch (status) {
+    case OK:
+        return "HTTP/1.1 200 OK";
+    case BAD_REQUEST:
+        return "HTTP/1.1 400 BAD REQUEST";
+    case NOT_FOUND:
+        return "HTTP/1.1 404 NOT FOUND";
+    case INTERNAL_ERROR:
+        return "HTTP/1.1 500 INTERNAL SERVER ERROR";
+    case METHOD_NOT_IMPLEMENTED:
+        return "HTTP/1.1 501 NOT IMPLEMENTED";
+    case HTTP_VERSION_NOT_SUPPORTED:
+        return "HTTP/1.1 505 HTML VERSION NOT SUPPORTED";
+    default:
+        return NULL;
+    }
+    return NULL;
+}
 
 static char *next_line(char *read_buf, size_t buf_size, size_t *start_idx) {
     if (!read_buf || !start_idx) return NULL;
@@ -30,12 +51,12 @@ static char *next_line(char *read_buf, size_t buf_size, size_t *start_idx) {
 }
 
 int parse_request(char *read_buf, size_t buf_size, Request *req_out) {
-    if (!read_buf || !req_out) return -1;
+    if (!read_buf || !req_out) return INTERNAL_ERROR;
 
     size_t next_line_idx = 0;
     char *line = next_line(read_buf, buf_size, &next_line_idx);
     if (!line) {
-        return -1;
+        return INTERNAL_ERROR;
     }
 
     fprintf(stderr, "Request: %s\n", line);
@@ -44,29 +65,38 @@ int parse_request(char *read_buf, size_t buf_size, Request *req_out) {
 
     char *saveptr;
     char *method = strtok_r(line, " ", &saveptr);
-    if (!method) return -1;
+    if (!method) {
+        return BAD_REQUEST;
+    }
 
     if (strcmp("GET", method) == 0) {
         req.method = GET;
     } else {
-        return -1;
+        return METHOD_NOT_IMPLEMENTED;
     }
 
     char *uri = strtok_r(NULL, " ", &saveptr);
-    if (!uri) return -1;
+    if (!uri) {
+        return BAD_REQUEST;
+    }
     req.uri = uri;
 
     char *protocol = strtok_r(NULL, " ", &saveptr);
-    if (!protocol || strcmp("HTTP/1.1", protocol) != 0) {
-        return -1;
+    if (!protocol) {
+        return BAD_REQUEST;
+    }
+    if (strcmp("HTTP/1.1", protocol) != 0) {
+        return HTTP_VERSION_NOT_SUPPORTED;
     }
 
     char *remainder = strtok_r(NULL, " ", &saveptr);
-    if (remainder) return -1; // no args left over
+    if (remainder) {
+        return BAD_REQUEST; // no args left over
+    }
 
     *req_out = req;
 
-    return 0;
+    return OK;
 }
 
 char *read_file(char *file, size_t *size) {
@@ -90,7 +120,6 @@ char *read_file(char *file, size_t *size) {
 
     rewind(fp);
 
-
     char *file_buf = malloc(len + 1);
     if (!file_buf) {
         return NULL;
@@ -113,7 +142,9 @@ char *read_file(char *file, size_t *size) {
     return file_buf;
 }
 
-char *build_response(char *msg, char *file, size_t *response_len) {
+char *build_response(HtmlStatus status, char *file, size_t *response_len) {
+    char *msg = html_status_msg(status);
+
     size_t content_len;
     char *content = read_file(file, &content_len);
     if (!content) {
@@ -140,9 +171,12 @@ char *handle_request(Request req, size_t *response_len) {
     char *response = NULL;
 
     if (strcmp("/", req.uri) == 0) {
-        response = build_response("HTTP/1.1 200 OK", "web/hello.html", response_len);
+        response = build_response(OK, "web/index.html", response_len);
+    } else if (strcmp("/sleep", req.uri) == 0) {
+        sleep(5);
+        response = build_response(OK, "web/index.html", response_len);
     } else {
-        response = build_response("HTTP/1.1 404 NOT FOUND", "web/404.html", response_len);
+        response = build_response(NOT_FOUND, "web/404.html", response_len);
     }
 
     return response;

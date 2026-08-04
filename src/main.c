@@ -59,8 +59,9 @@ int handle_connection(int conn_fd) {
     }
 
     Request req;
-    if (parse_request(read_buf, READ_BUF_SIZE, &req) < 0) {
-        send_response(conn_fd, "HTTP/1.1 400 BAD REQUEST");
+    int status;
+    if ((status = parse_request(read_buf, READ_BUF_SIZE, &req)) != OK) {
+        send_response(conn_fd, html_status_msg(status));
         return 0;
     }
 
@@ -89,7 +90,7 @@ void server_run(int listen_fd) {
         fprintf(stderr, "Connection accepted\n");
 
         if (handle_connection(conn_fd) < 0) {
-            send_response(conn_fd, "HTTP/1.1 500 INTERNAL SERVER ERROR");
+            send_response(conn_fd, html_status_msg(INTERNAL_ERROR));
         }
 
         close(conn_fd);

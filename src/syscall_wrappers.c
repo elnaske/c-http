@@ -1,10 +1,10 @@
 #include "syscall_wrappers.h"
 
+#include <netdb.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <netdb.h>
-#include <stdlib.h>
 
 int Getaddrinfo(const char *node, const char *service, const struct addrinfo *hints, struct addrinfo **res) {
     int status = getaddrinfo(node, service, hints, res);
@@ -54,13 +54,4 @@ int Recv(int fd, void *buf, size_t buf_size, int flags) {
         return -1;
     }
     return 0;
-}
-
-FILE *Fopen(const char *filename, const char *modes) {
-    FILE *fp = fopen(filename, modes);
-    if (!fp) {
-        perror("Fopen error");
-        return NULL;
-    }
-    return fp;
 }
