@@ -55,3 +55,19 @@ int Recv(int fd, void *buf, size_t buf_size, int flags) {
     }
     return 0;
 }
+
+int Send(int fd, const void *buf, size_t n, int flags) {
+    int bytes_sent;
+    int total_sent = 0;
+    int bytes_remaining = n;
+    while ((bytes_sent = send(fd, (char *)buf + total_sent, bytes_remaining, flags)) < bytes_remaining) {
+        if (bytes_sent < 0) {
+            perror("Send error");
+            return -1;
+        }
+
+        total_sent += bytes_sent;
+        bytes_remaining -= bytes_sent;
+    }
+    return 0;
+}

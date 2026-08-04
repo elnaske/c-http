@@ -36,20 +36,18 @@ int server_init() {
     return listen_fd;
 }
 
-int send_response(int conn_fd, char *response) {
-    int bytes_sent;
-    int total_sent = 0;
-    int bytes_remaining = strlen(response);
-    while ((bytes_sent = send(conn_fd, response + total_sent, bytes_remaining, 0)) < bytes_remaining) {
-        if (bytes_sent < 0) {
-            perror("Send error");
-            return -1;
-        }
-
-        total_sent += bytes_sent;
-        bytes_remaining -= bytes_sent;
+int send_response(int conn_fd, Response res) {
+    size_t response_len;
+    char *serialized = serialize_reponse(res, &response_len);
+    if (!serialized) {
+        return -1;
     }
-    return 0;
+
+    int status = Send(conn_fd, serialized, response_len, 0);
+
+    free(serialized);
+
+    return status;
 }
 
 int handle_connection(int conn_fd) {
@@ -59,21 +57,18 @@ int handle_connection(int conn_fd) {
     }
 
     Request req;
-    int status;
-    if ((status = parse_request(read_buf, READ_BUF_SIZE, &req)) != OK) {
-        send_response(conn_fd, html_status_msg(status));
-        return 0;
+    int status = parse_request(read_buf, READ_BUF_SIZE, &req);
+
+    Response res;
+    if (status == OK) {
+        res = handle_request(req);
+    } else {
+        res = build_response(status, NULL);
     }
 
-    size_t response_len;
-    char *response = handle_request(req, &response_len);
-    if (!response) {
+    if (send_response(conn_fd, res) < 0) {
         return -1;
     }
-
-    send_response(conn_fd, response);
-
-    free(response);
 
     return 0;
 }
@@ -90,7 +85,7 @@ void server_run(int listen_fd) {
         fprintf(stderr, "Connection accepted\n");
 
         if (handle_connection(conn_fd) < 0) {
-            send_response(conn_fd, html_status_msg(INTERNAL_ERROR));
+            send_response(conn_fd, build_response(INTERNAL_ERROR, NULL));
         }
 
         close(conn_fd);

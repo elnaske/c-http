@@ -13,3 +13,5 @@ int Bind(int fd, const struct sockaddr *addr, socklen_t addrlen);
 int Listen(int fd, int backlog);
 
 int Recv(int fd, void *buf, size_t buf_size, int flags);
+
+int Send(int fd, const void *buf, size_t n, int flags);

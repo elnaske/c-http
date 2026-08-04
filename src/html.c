@@ -61,40 +61,31 @@ int parse_request(char *read_buf, size_t buf_size, Request *req_out) {
 
     fprintf(stderr, "Request: %s\n", line);
 
-    Request req = {0};
-
     char *saveptr;
     char *method = strtok_r(line, " ", &saveptr);
-    if (!method) {
+    char *uri = strtok_r(NULL, " ", &saveptr);
+    char *protocol = strtok_r(NULL, " ", &saveptr);
+    char *remainder = strtok_r(NULL, " ", &saveptr); // no leftover args
+
+    if (!method || !uri || !protocol || remainder) {
         return BAD_REQUEST;
     }
 
-    if (strcmp("GET", method) == 0) {
-        req.method = GET;
+    if (strcmp(protocol, "HTTP/1.1") != 0) {
+        return HTTP_VERSION_NOT_SUPPORTED;
+    }
+
+    Method m;
+    if (strcmp(method, "GET") == 0) {
+        m = GET;
     } else {
         return METHOD_NOT_IMPLEMENTED;
     }
 
-    char *uri = strtok_r(NULL, " ", &saveptr);
-    if (!uri) {
-        return BAD_REQUEST;
-    }
-    req.uri = uri;
-
-    char *protocol = strtok_r(NULL, " ", &saveptr);
-    if (!protocol) {
-        return BAD_REQUEST;
-    }
-    if (strcmp("HTTP/1.1", protocol) != 0) {
-        return HTTP_VERSION_NOT_SUPPORTED;
-    }
-
-    char *remainder = strtok_r(NULL, " ", &saveptr);
-    if (remainder) {
-        return BAD_REQUEST; // no args left over
-    }
-
-    *req_out = req;
+    *req_out = (Request) {
+        .method = m,
+        .uri = uri,
+    };
 
     return OK;
 }
@@ -142,42 +133,58 @@ char *read_file(char *file, size_t *size) {
     return file_buf;
 }
 
-char *build_response(HtmlStatus status, char *file, size_t *response_len) {
-    char *msg = html_status_msg(status);
+Response build_response(HtmlStatus status, char *file) {
+    return (Response){
+        .status = status,
+        .file = file,
+    };
+}
+
+char *serialize_reponse(Response res, size_t *len_out) {
+    char *status_msg = html_status_msg(res.status);
+    size_t status_msg_len = strlen(status_msg);
+
+    if (!res.file) {
+        if (len_out) {
+            *len_out = status_msg_len;
+        }
+        return strdup(status_msg); // strdup to avoid calling free() on static memory
+    }
 
     size_t content_len;
-    char *content = read_file(file, &content_len);
+    char *content = read_file(res.file, &content_len);
     if (!content) {
         return NULL;
     }
 
-    size_t len = strlen(msg) + content_len + 64;
-    char *response = malloc(len);
+    size_t padding = 64;
+    size_t response_len = status_msg_len + content_len + padding;
+    char *response = malloc(response_len);
     if (!response) {
         return NULL;
     }
 
-    snprintf(response, len, "%s\r\nContent-Length: %ld\r\n\r\n%s", msg, content_len, content);
+    snprintf(response, response_len, "%s\r\nContent-Length: %ld\r\n\r\n%s", status_msg, content_len, content);
 
     free(content);
 
-    if (response_len) {
-        *response_len = len;
+    if (len_out) {
+        *len_out = response_len;
     }
     return response;
 }
 
-char *handle_request(Request req, size_t *response_len) {
-    char *response = NULL;
+Response handle_request(Request req) {
+    Response res = {0};
 
     if (strcmp("/", req.uri) == 0) {
-        response = build_response(OK, "web/index.html", response_len);
+        res = build_response(OK, "web/index.html");
     } else if (strcmp("/sleep", req.uri) == 0) {
         sleep(5);
-        response = build_response(OK, "web/index.html", response_len);
+        res = build_response(OK, "web/index.html");
     } else {
-        response = build_response(NOT_FOUND, "web/404.html", response_len);
+        res = build_response(NOT_FOUND, "web/404.html");
     }
 
-    return response;
+    return res;
 }
