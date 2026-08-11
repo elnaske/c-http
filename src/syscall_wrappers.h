@@ -12,6 +12,10 @@ int Bind(int fd, const struct sockaddr *addr, socklen_t addrlen);
 
 int Listen(int fd, int backlog);
 
+int Accept(int fd, struct sockaddr *conn_addr, socklen_t *addr_len);
+
 int Recv(int fd, void *buf, size_t buf_size, int flags);
 
 int Send(int fd, const void *buf, size_t n, int flags);
+
+int Pthread_create(pthread_t *tid, const pthread_attr_t *attr, void *(start_routine)(void *), void *arg);

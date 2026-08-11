@@ -1,6 +1,8 @@
 #include "syscall_wrappers.h"
 
+#include <errno.h>
 #include <netdb.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -47,6 +49,15 @@ int Listen(int fd, int backlog) {
     return 0;
 }
 
+int Accept(int fd, struct sockaddr *conn_addr, socklen_t *addr_len) {
+    int conn_fd = accept(fd, conn_addr, addr_len);
+    if (conn_fd < 0) {
+        perror("Accept error");
+        return -1;
+    }
+    return conn_fd;
+}
+
 int Recv(int fd, void *buf, size_t buf_size, int flags) {
     int bytes_read = recv(fd, buf, buf_size, flags);
     if (bytes_read < 0) {
@@ -68,6 +79,16 @@ int Send(int fd, const void *buf, size_t n, int flags) {
 
         total_sent += bytes_sent;
         bytes_remaining -= bytes_sent;
+    }
+    return 0;
+}
+
+int Pthread_create(pthread_t *tid, const pthread_attr_t *attr, void *(start_routine)(void *), void *arg) {
+    int status = pthread_create(tid, attr, start_routine, arg);
+    if (status != 0) {
+        errno = status;
+        perror("Failed to create thread");
+        return -1;
     }
     return 0;
 }

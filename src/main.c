@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <netdb.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,23 +74,36 @@ int handle_connection(int conn_fd) {
     return 0;
 }
 
+void *thread(void *arg) {
+    int conn_fd = (int)(intptr_t)arg;
+    pthread_t self_tid = pthread_self();
+
+    pthread_detach(self_tid);
+
+    fprintf(stderr, "[Thread #%ld] Connection accepted\n", self_tid);
+
+    if (handle_connection(conn_fd) < 0) {
+        send_response(conn_fd, build_response(INTERNAL_ERROR, NULL));
+    }
+
+    close(conn_fd);
+
+    fprintf(stderr, "[Thread #%ld] Connection closed\n", self_tid);
+
+    return NULL;
+}
+
 void server_run(int listen_fd) {
     while (1) {
         struct sockaddr_storage conn_addr;
         socklen_t addr_len = sizeof(conn_addr);
-        int conn_fd = accept(listen_fd, (struct sockaddr *)&conn_addr, &addr_len);
+        int conn_fd = Accept(listen_fd, (struct sockaddr *)&conn_addr, &addr_len);
         if (conn_fd < 0) {
-            perror("Accept error");
             continue;
         }
-        fprintf(stderr, "Connection accepted\n");
 
-        if (handle_connection(conn_fd) < 0) {
-            send_response(conn_fd, build_response(INTERNAL_ERROR, NULL));
-        }
-
-        close(conn_fd);
-        fprintf(stderr, "Connection closed\n");
+        pthread_t tid;
+        Pthread_create(&tid, NULL, &thread, (void *)(intptr_t)conn_fd);
     }
 }
 
