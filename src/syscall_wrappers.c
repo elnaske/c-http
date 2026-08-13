@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <netdb.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -88,6 +89,14 @@ int Pthread_create(pthread_t *tid, const pthread_attr_t *attr, void *(start_rout
     if (status != 0) {
         errno = status;
         perror("Failed to create thread");
+        return -1;
+    }
+    return 0;
+}
+
+int Sem_init(sem_t *sem, int pshared, unsigned int value) {
+    if (sem_init(sem, pshared, value) < 0) {
+        perror("Failed to initialize semaphore");
         return -1;
     }
     return 0;

@@ -12,10 +12,13 @@
 
 #include "html.h"
 #include "syscall_wrappers.h"
+#include "threadpool.h"
 
 #define PORT "7878"
 #define BACKLOG 10
 #define READ_BUF_SIZE 1024
+#define N_WORKERS 4
+#define CONN_QUEUE_SIZE 16
 
 int server_init() {
     struct addrinfo hints = {0};
@@ -75,25 +78,35 @@ int handle_connection(int conn_fd) {
 }
 
 void *thread(void *arg) {
-    int conn_fd = (int)(intptr_t)arg;
-    pthread_t self_tid = pthread_self();
+    ConnectionQueue *q = arg;
 
+    pthread_t self_tid = pthread_self();
     pthread_detach(self_tid);
 
-    fprintf(stderr, "[Thread #%ld] Connection accepted\n", self_tid);
+    while (1) {
+        int conn_fd = conn_deque(q);
+        fprintf(stderr, "[Thread #%ld] Connection accepted\n", self_tid);
 
-    if (handle_connection(conn_fd) < 0) {
-        send_response(conn_fd, build_response(INTERNAL_ERROR, NULL));
+        if (handle_connection(conn_fd) < 0) {
+            send_response(conn_fd, build_response(INTERNAL_ERROR, NULL));
+        }
+
+        close(conn_fd);
+        fprintf(stderr, "[Thread #%ld] Connection closed\n", self_tid);
     }
-
-    close(conn_fd);
-
-    fprintf(stderr, "[Thread #%ld] Connection closed\n", self_tid);
-
-    return NULL;
 }
 
-void server_run(int listen_fd) {
+int spawn_workers(ConnectionQueue *q, size_t num_workers) {
+    pthread_t tid;
+    for (size_t i = 0; i < num_workers; i++) {
+        if (Pthread_create(&tid, NULL, thread, q) < 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+void server_run(ConnectionQueue *q, int listen_fd) {
     while (1) {
         struct sockaddr_storage conn_addr;
         socklen_t addr_len = sizeof(conn_addr);
@@ -102,13 +115,25 @@ void server_run(int listen_fd) {
             continue;
         }
 
-        pthread_t tid;
-        Pthread_create(&tid, NULL, &thread, (void *)(intptr_t)conn_fd);
+        // pthread_t tid;
+        // Pthread_create(&tid, NULL, &thread, (void *)(intptr_t)conn_fd);
+        conn_enque(q, conn_fd);
     }
 }
 
 int main() {
     int listen_fd = server_init();
 
-    server_run(listen_fd);
+    ConnectionQueue q;
+    int conn_buf[CONN_QUEUE_SIZE];
+    if (conn_queue_init(&q, conn_buf, CONN_QUEUE_SIZE) < 0) {
+        return -1;
+    }
+
+    if (spawn_workers(&q, N_WORKERS) < 0) {
+        return -1;
+    }
+
+    server_run(&q, listen_fd);
+    return 0;
 }
