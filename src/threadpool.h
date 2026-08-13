@@ -3,6 +3,8 @@
 #include <semaphore.h>
 #include <stdint.h>
 
+typedef struct Server Server;
+
 typedef struct {
     int *buf;
     uint32_t buf_size;
@@ -18,3 +20,5 @@ int conn_queue_init(ConnectionQueue *q, int *conn_buf, uint32_t buf_size);
 int conn_enque(ConnectionQueue *q, int conn_fd);
 
 int conn_deque(ConnectionQueue *q);
+
+void *worker_thread(void *arg);
