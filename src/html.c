@@ -17,6 +17,8 @@ char *html_status_msg(HtmlStatus status) {
         return "HTTP/1.1 400 BAD REQUEST";
     case NOT_FOUND:
         return "HTTP/1.1 404 NOT FOUND";
+    case REQUEST_TIMEOUT:
+        return "HTTP/1.1 408 REQUEST TIMEOUT";
     case INTERNAL_ERROR:
         return "HTTP/1.1 500 INTERNAL SERVER ERROR";
     case METHOD_NOT_IMPLEMENTED:
@@ -82,7 +84,7 @@ int parse_request(char *read_buf, size_t buf_size, Request *req_out) {
         return METHOD_NOT_IMPLEMENTED;
     }
 
-    *req_out = (Request) {
+    *req_out = (Request){
         .method = m,
         .uri = uri,
     };
@@ -133,7 +135,7 @@ char *read_file(char *file, size_t *size) {
     return file_buf;
 }
 
-Response build_response(HtmlStatus status, char *file) {
+Response build_response_from_status(HtmlStatus status, char *file) {
     return (Response){
         .status = status,
         .file = file,
@@ -178,12 +180,12 @@ Response handle_request(Request req) {
     Response res = {0};
 
     if (strcmp("/", req.uri) == 0) {
-        res = build_response(OK, "web/index.html");
+        res = build_response_from_status(OK, "web/index.html");
     } else if (strcmp("/sleep", req.uri) == 0) {
         sleep(5);
-        res = build_response(OK, "web/index.html");
+        res = build_response_from_status(OK, "web/index.html");
     } else {
-        res = build_response(NOT_FOUND, "web/404.html");
+        res = build_response_from_status(NOT_FOUND, "web/404.html");
     }
 
     return res;

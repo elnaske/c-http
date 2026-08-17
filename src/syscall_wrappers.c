@@ -18,6 +18,14 @@ int Getaddrinfo(const char *node, const char *service, const struct addrinfo *hi
     return 0;
 }
 
+int Setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen) {
+    if (setsockopt(fd, level, optname, optval, optlen) < 0) {
+        perror("Setsockopt error");
+        exit(1);
+    }
+    return 0;
+}
+
 int Socket(int domain, int type, int protocol) {
     int listen_fd = socket(domain, type, protocol);
     if (listen_fd < 0) {
@@ -25,15 +33,10 @@ int Socket(int domain, int type, int protocol) {
         exit(1);
     }
 
-    return listen_fd;
-}
+    int optval = 1;
+    Setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(int));
 
-int Setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen) {
-    if (setsockopt(fd, level, optname, optval, optlen) < 0) {
-        perror("Setsockopt error");
-        exit(1);
-    }
-    return 0;
+    return listen_fd;
 }
 
 int Bind(int fd, const struct sockaddr *addr, socklen_t addrlen) {
@@ -63,7 +66,7 @@ int Accept(int fd, struct sockaddr *conn_addr, socklen_t *addr_len) {
 
 int Recv(int fd, void *buf, size_t buf_size, int flags) {
     int bytes_read = recv(fd, buf, buf_size, flags);
-    if (bytes_read < 0) {
+    if (bytes_read < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
         perror("Recv error");
         return -1;
     }

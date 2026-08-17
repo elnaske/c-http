@@ -1,10 +1,10 @@
 #define _GNU_SOURCE
 
+#include <errno.h>
 #include <signal.h>
 #include <stdbool.h>
-#include <stdlib.h>
 #include <stdio.h>
-#include <errno.h>
+#include <stdlib.h>
 
 volatile sig_atomic_t shutdown_requested = 0;
 

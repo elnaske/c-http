@@ -19,8 +19,19 @@
 #include "syscall_wrappers.h"
 #include "threadpool.h"
 
+#define INACTIVITY_TIMEOUT_SECS 5
+#define INACTIVITY_TIMEOUT_USECS 0
+
 extern volatile sig_atomic_t shutdown_requested;
 int conn_buf[CONN_QUEUE_SIZE] = {0};
+
+void set_socket_timeout(int fd, time_t secs, suseconds_t usecs) {
+    struct timeval timeout;
+    timeout.tv_sec = secs;
+    timeout.tv_usec = usecs;
+
+    Setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+}
 
 int open_tcp_listener(char *port) {
     struct addrinfo hints = {0};
@@ -32,9 +43,6 @@ int open_tcp_listener(char *port) {
     Getaddrinfo(NULL, port, &hints, &res);
 
     int listen_fd = Socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-
-    int optval = 1;
-    Setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(int));
 
     Bind(listen_fd, res->ai_addr, res->ai_addrlen);
 
@@ -87,6 +95,8 @@ void server_run(Server *s) {
         if (conn_fd < 0) {
             continue;
         }
+
+        set_socket_timeout(conn_fd, INACTIVITY_TIMEOUT_SECS, INACTIVITY_TIMEOUT_USECS);
 
         conn_enque(&s->q, conn_fd);
     }

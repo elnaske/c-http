@@ -10,6 +10,7 @@ typedef enum {
     OK = 200,
     BAD_REQUEST = 400,
     NOT_FOUND = 404,
+    REQUEST_TIMEOUT = 408,
     INTERNAL_ERROR = 500,
     METHOD_NOT_IMPLEMENTED = 501,
     HTTP_VERSION_NOT_SUPPORTED = 505,
@@ -27,7 +28,7 @@ typedef struct {
 
 char *html_status_msg(HtmlStatus status);
 
-Response build_response(HtmlStatus status, char *file);
+Response build_response_from_status(HtmlStatus status, char *file);
 
 char *serialize_reponse(Response res, size_t *len_out);
 

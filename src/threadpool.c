@@ -1,5 +1,6 @@
 #include "threadpool.h"
 
+#include <errno.h>
 #include <semaphore.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -99,19 +100,26 @@ int send_response(int conn_fd, Response res) {
 }
 
 int handle_connection(int conn_fd) {
+    Request req;
+    Response res;
+    int status;
+
     char read_buf[READ_BUF_SIZE] = {0};
     if (Recv(conn_fd, &read_buf, READ_BUF_SIZE, 0) < 0) {
         return -1;
     }
 
-    Request req;
-    int status = parse_request(read_buf, READ_BUF_SIZE, &req);
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        fprintf(stderr, "[Thread #%ld] Request timed out\n", pthread_self());
+        status = REQUEST_TIMEOUT;
+    } else {
+        status = parse_request(read_buf, READ_BUF_SIZE, &req);
+    }
 
-    Response res;
     if (status == OK) {
         res = handle_request(req);
     } else {
-        res = build_response(status, NULL);
+        res = build_response_from_status(status, NULL);
     }
 
     if (send_response(conn_fd, res) < 0) {
@@ -125,7 +133,6 @@ void *worker_thread(void *arg) {
     ConnectionQueue *q = arg;
 
     pthread_t self_tid = pthread_self();
-    // pthread_detach(self_tid);
 
     while (1) {
         int conn_fd = conn_deque(q);
@@ -136,7 +143,7 @@ void *worker_thread(void *arg) {
         fprintf(stderr, "[Thread #%ld] Connection accepted\n", self_tid);
 
         if (handle_connection(conn_fd) < 0) {
-            send_response(conn_fd, build_response(INTERNAL_ERROR, NULL));
+            send_response(conn_fd, build_response_from_status(INTERNAL_ERROR, NULL));
         }
 
         close(conn_fd);
