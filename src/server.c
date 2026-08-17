@@ -14,7 +14,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "html.h"
 #include "shutdown.h"
 #include "syscall_wrappers.h"
 #include "threadpool.h"

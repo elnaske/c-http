@@ -1,6 +1,4 @@
-#include "html.h"
 #include "server.h"
-#include "syscall_wrappers.h"
 #include "threadpool.h"
 
 int main() {
