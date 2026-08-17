@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <netdb.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,9 +15,11 @@
 #include <unistd.h>
 
 #include "html.h"
+#include "shutdown.h"
 #include "syscall_wrappers.h"
 #include "threadpool.h"
 
+extern volatile sig_atomic_t shutdown_requested;
 int conn_buf[CONN_QUEUE_SIZE] = {0};
 
 int open_tcp_listener(char *port) {
@@ -30,6 +33,9 @@ int open_tcp_listener(char *port) {
 
     int listen_fd = Socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 
+    int optval = 1;
+    Setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(int));
+
     Bind(listen_fd, res->ai_addr, res->ai_addrlen);
 
     Listen(listen_fd, BACKLOG);
@@ -40,13 +46,14 @@ int open_tcp_listener(char *port) {
 }
 
 int spawn_workers(Server *s, size_t num_workers) {
-    pthread_t tid;
     for (size_t i = 0; i < num_workers; i++) {
+        pthread_t tid;
         if (Pthread_create(&tid, NULL, &worker_thread, &s->q) < 0) {
             return -1;
         }
         s->worker_tids[i] = tid;
     }
+    s->num_workers = num_workers;
     return 0;
 }
 
@@ -58,6 +65,8 @@ int server_init(Server *s, char *port) {
         return -1;
     }
     s->q = q;
+
+    install_sigint_handler(request_shutdown);
 
     if (spawn_workers(s, N_WORKERS) < 0) {
         return -1;
@@ -71,13 +80,33 @@ int server_init(Server *s, char *port) {
 void server_run(Server *s) {
     struct sockaddr_storage conn_addr;
     socklen_t addr_len = sizeof(conn_addr);
-    
-    while (s->running) {
+
+    // while (s->running) {
+    while (!shutdown_requested) {
         int conn_fd = Accept(s->listen_fd, (struct sockaddr *)&conn_addr, &addr_len);
         if (conn_fd < 0) {
             continue;
         }
 
         conn_enque(&s->q, conn_fd);
+    }
+
+    fprintf(stderr, "Shutting down\n");
+
+    fprintf(stderr, "Notifying workers\n");
+    /* Currently, we only need to shutdown the workers, so the flag for doing so is internal to the queue.
+     * This is nice because the mutex is only accessed within the queue.
+     * If more features are added in the future, a global variable for notifying _all_ thread may be
+     * a simpler solution.
+     */
+    conn_queue_drain(&s->q, s->num_workers);
+
+    fprintf(stderr, "Joining worker threads\n");
+    for (size_t i = 0; i < s->num_workers; i++) {
+        int status = pthread_join(s->worker_tids[i], NULL);
+        if (status != 0) {
+            errno = status;
+            perror("Join error");
+        }
     }
 }

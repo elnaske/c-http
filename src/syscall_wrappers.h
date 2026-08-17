@@ -10,6 +10,8 @@ int Getaddrinfo(const char *node, const char *service, const struct addrinfo *hi
 
 int Socket(int domain, int type, int protocol);
 
+int Setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen);
+
 int Bind(int fd, const struct sockaddr *addr, socklen_t addrlen);
 
 int Listen(int fd, int backlog);

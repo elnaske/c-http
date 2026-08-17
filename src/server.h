@@ -13,7 +13,8 @@
 
 typedef struct Server {
     ConnectionQueue q;
-    int worker_tids[N_WORKERS];
+    size_t num_workers;
+    pthread_t worker_tids[N_WORKERS];
     int listen_fd;
     bool running;
 } Server;

@@ -25,13 +25,15 @@ int Socket(int domain, int type, int protocol) {
         exit(1);
     }
 
-    int optval = 1;
-    if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(int)) < 0) {
+    return listen_fd;
+}
+
+int Setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen) {
+    if (setsockopt(fd, level, optname, optval, optlen) < 0) {
         perror("Setsockopt error");
         exit(1);
     }
-
-    return listen_fd;
+    return 0;
 }
 
 int Bind(int fd, const struct sockaddr *addr, socklen_t addrlen) {
@@ -52,7 +54,7 @@ int Listen(int fd, int backlog) {
 
 int Accept(int fd, struct sockaddr *conn_addr, socklen_t *addr_len) {
     int conn_fd = accept(fd, conn_addr, addr_len);
-    if (conn_fd < 0) {
+    if (conn_fd < 0 && errno != EINTR) { // interrupts should not print an error msg
         perror("Accept error");
         return -1;
     }
